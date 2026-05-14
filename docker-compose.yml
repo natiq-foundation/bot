@@ -1,0 +1,26 @@
+services:
+  natiq-bot:
+    image: natiq-foundation/natiq-bot:latest
+    container_name: natiq-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+
+    volumes:
+      - bot-logs:/app/logs
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot-logs:
