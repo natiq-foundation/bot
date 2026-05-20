@@ -1,0 +1,33 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: 
+      - "main"
+      - "test"
+      - "dev"
+  pull_request:
+    branches:
+      - "main"
+      - "test"
+      - "dev"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the Docker image
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            TAG="latest"
+          else
+            TAG="${GITHUB_REF##*/}"
+          fi
+          docker build . --file Dockerfile --tag bot:$TAG
