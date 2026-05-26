@@ -73,12 +73,29 @@ class CacheManager:
             'verse_number': verse['number'],
             'verse_text': verse['text'],
             'translation': translation,
+            'period': surah.get('period', ''),
             'uuid': verse['uuid']
         }
     
     def format_verse(self, data: Dict[str, Any]) -> str:
-        return (
-            f"سوره {data['surah_name']}، آیه {data['verse_number']}\n\n"
-            f"*{data['verse_text']}*\n\n"
-            f"{data['translation']}"
+        
+        surah_name = data.get('surah_name', 'نامشخص')
+        verse_number = data.get('verse_number', 0)
+        verse_text = data.get('verse_text', '')
+        translation = data.get('translation', '')     
+        period = data.get('period', '')
+        
+        if period == 'makki':
+            period_icon = "🕋"
+        elif period == 'madani':
+            period_icon = "🕌"
+        else:
+            period_icon = "📖"
+        
+        message = (
+            f"{period_icon} *سوره {surah_name}*\n\n"
+            f"📖 *{data['verse_text']}* ﴿{data['verse_number']}﴾\n\n"
+            f"📝 {translation}"
         )
+        
+        return message
