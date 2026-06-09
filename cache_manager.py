@@ -91,11 +91,15 @@ class CacheManager:
             period_icon = "🕌"
         else:
             period_icon = "📖"
+
+        channel_id = Config.CHANNEL_ID
+        channel_footer = f"@{channel_id}" if channel_id else ""
         
         message = (
             f"{period_icon} *سوره {surah_name}*\n\n"
-            f"📖 *{data['verse_text']}* ﴿{data['verse_number']}﴾\n\n"
-            f"📝 {translation}"
+            f"📖 *{verse_text} ﴿{verse_number}﴾*\n\n"
+            f"📝 {translation} ({verse_number})\n\n"
+            f"{channel_footer}"
         )
         
         return message

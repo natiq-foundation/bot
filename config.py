@@ -8,6 +8,10 @@ class Config:
     # Bot
     BALE_BOT_TOKEN: str = os.getenv("BALE_BOT_TOKEN", "")
     BALE_API_URL: str = os.getenv("BALE_API_URL", "https://tapi.bale.ai")
+
+    # Debug Mode
+    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
+    DEBUG_VERSE_LIMIT: int = int(os.getenv("DEBUG_VERSE_LIMIT", "200"))
     
     # Quran API
     QURAN_API_URL: str = os.getenv("QURAN_API_URL", "http://localhost")
@@ -19,6 +23,7 @@ class Config:
     SCHEDULE_HOUR: int = int(os.getenv("SCHEDULE_HOUR", "3"))
     SCHEDULE_MINUTE: int = int(os.getenv("SCHEDULE_MINUTE", "0"))
     SCHEDULE_TIMEZONE: str = os.getenv("SCHEDULE_TIMEZONE", "Asia/Riyadh")
+
     
     # Recipients
     @staticmethod
@@ -52,3 +57,6 @@ class Config:
     @classmethod
     def get_bale_full_api_url(cls) -> str:
         return f"{cls.BALE_API_URL}/bot{cls.BALE_BOT_TOKEN}"
+
+    # Channel ID for reference at the end of the message
+    CHANNEL_ID: str = os.getenv("CHANNEL_ID", "")

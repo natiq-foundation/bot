@@ -8,13 +8,17 @@ class APIClient:
     def __init__(self, base_url: str = None):
         self.base_url = base_url or Config.QURAN_API_URL
         self.mushaf = Config.MUSHAF
-        self.page_size = 200  # Number of verses per request
+        self.page_size = Config.PAGE_SIZE if Config.PAGE_SIZE > 0 else 200
+        self.debug_limit = Config.DEBUG_VERSE_LIMIT if Config.DEBUG else None
     
     def get_verses(self) -> List[Dict[str, Any]]:
         all_verses = []
         offset = 0
         
-        print("📥 Get verses (with pagination)...")
+        if Config.DEBUG:
+            print(f"🔧 [DEBUG MODE] Getting only {self.debug_limit} verses...")
+        else:
+            print("📥 Get verses (with pagination)...")
         
         while True:
             response = requests.get(
@@ -32,6 +36,11 @@ class APIClient:
             
             all_verses.extend(verses)
             
+            if self.debug_limit and len(all_verses) >= self.debug_limit:
+                all_verses = all_verses[:self.debug_limit]
+                print(f"   ⚠️ [DEBUG] Stopped at {len(all_verses)} verses (limit reached)")
+                break
+            
             if len(verses) < self.page_size:
                 break
             
@@ -44,7 +53,10 @@ class APIClient:
         all_translations = []
         offset = 0
         
-        print("📥 Get translations (with pagination)...")
+        if Config.DEBUG:
+            print(f"🔧 [DEBUG MODE] Getting only {self.debug_limit} translations...")
+        else:
+            print("📥 Get translations (with pagination)...")
         
         while True:
             response = requests.get(
@@ -61,6 +73,11 @@ class APIClient:
                 break
             
             all_translations.extend(translations)
+
+            if self.debug_limit and len(all_translations) >= self.debug_limit:
+                all_translations = all_translations[:self.debug_limit]
+                print(f"   ⚠️ [DEBUG] Stopped at {len(all_translations)} translations (limit reached)")
+                break
             
             if len(translations) < self.page_size:
                 break
