@@ -11,10 +11,6 @@ from db.session import get_session
 
 from services.verse_ingestion_service import LAST_INGESTION_STATE_KEY
 
-
-PLATFORM = "telegram"
-
-
 def register_incoming_message(platform: str, chat: dict) -> None:
     """
     Store Telegram users/groups/channels that interact with the bot.
