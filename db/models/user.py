@@ -8,7 +8,7 @@ from db.base import Base
 
 class User(Base):
     """A private (direct-message) user who has talked to the bot, on any
-    supported platform (Bale, Telegram, Eitaa, Rubika)."""
+    supported platforms"""
 
     __tablename__ = "users"
     __table_args__ = (
@@ -17,7 +17,6 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    # "bale" / "telegram" / "eitaa" / "rubika"
     platform: Mapped[str] = mapped_column(String(32), index=True)
 
     # The chat id on that platform. Stored as a string because Rubika

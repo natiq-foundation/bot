@@ -24,10 +24,9 @@ logger = logging.getLogger(__name__)
 
 class BotRunner:
     """
-    Telegram bot runner.
-
+    bot runner.
     The bot logic works with normalized messages.
-    Telegram API details are handled inside the Telegram adapter.
+    Telegram-API details are handled inside the adapter.
     """
 
     def __init__(
@@ -40,29 +39,29 @@ class BotRunner:
         self.rate_limiter = rate_limiter
 
     def run_forever(self):
-        telegram = self.adapters.get("telegram")
+        api = self.adapters.get("PLATFORM")
 
-        if not telegram:
+        if not api:
             raise RuntimeError(
-                "Telegram adapter is missing. Check TELEGRAM_BOT_TOKEN in .env"
+                "adapter is missing. Check BOT_TOKEN in .env"
             )
 
-        logger.info("Telegram polling started")
+        logger.info("polling started")
 
         while True:
             try:
-                messages = telegram.get_updates()
+                messages = api.get_updates()
 
                 if messages:
                     self._process_messages(
-                        telegram,
+                        api,
                         messages,
                     )
 
                 time.sleep(1)
 
             except KeyboardInterrupt:
-                logger.info("Stopping Telegram bot...")
+                logger.info("Stopping bot...")
                 raise
 
             except Exception as e:
@@ -302,7 +301,7 @@ def main():
     )
 
     if not runner.adapters:
-        logger.error("No Telegram adapter configured. Check TELEGRAM_BOT_TOKEN in .env")
+        logger.error("No adapter configured. Check TELEGRAM_BOT_TOKEN in .env")
         return
 
     scheduler = MessageScheduler(

@@ -1,11 +1,3 @@
-"""
-Bale (tapi.bale.ai) and Telegram (api.telegram.org) both implement the
-same Bot API shape: `{base_url}/bot{token}/{method}`, long-polling
-getUpdates with an `offset`, sendMessage with chat_id/text/parse_mode.
-This base class holds that shared logic; bale.py and telegram.py just
-set the base URL.
-"""
-
 import logging
 from typing import List
 
@@ -16,7 +8,7 @@ from services.messengers.base import MessengerAdapter, NormalizedMessage
 logger = logging.getLogger(__name__)
 
 
-class TelegramLikeAdapter(MessengerAdapter):
+class Adapter(MessengerAdapter):
     supports_polling = True
 
     def __init__(self, token: str, api_base_url: str, timeout: int = 30):

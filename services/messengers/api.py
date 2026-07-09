@@ -1,8 +1,8 @@
-from services.messengers.telegram_like import TelegramLikeAdapter
+from services.messengers.api_like import Adapter
 
 
-class TelegramAdapter(TelegramLikeAdapter):
-    platform = "telegram"
+class Adapter(TelegramLikeAdapter):
+    platform = "PLATFORM"
 
-    def __init__(self, token: str, api_base_url: str = "https://api.telegram.org"):
+    def __init__(self, token: str, api_base_url: str = ""):
         super().__init__(token, api_base_url)

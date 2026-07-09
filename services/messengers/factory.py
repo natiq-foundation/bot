@@ -1,5 +1,5 @@
 from config import Config
-from services.messengers.telegram import TelegramAdapter
+from services.messengers.api import Adapter
 
 
 def build_adapters():
@@ -12,6 +12,6 @@ def build_adapters():
     if not Config.BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN is missing in .env")
 
-    adapters["telegram"] = TelegramAdapter(token=Config.BOT_TOKEN)
+    adapters["PLATFORM"] = Adapter(token=Config.BOT_TOKEN)
 
     return adapters
