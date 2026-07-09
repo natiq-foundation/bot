@@ -17,8 +17,12 @@ class Config:
     )
 
     API_URL: str = os.getenv(
-        "BOT_API_URL",
+        "API_URL",
         "",
+    )
+    PLATFORM: str = os.getenv(
+    "PLATFORM",
+    "",
     )
 
     # =====================================================
