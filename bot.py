@@ -39,8 +39,9 @@ class BotRunner:
         self.rate_limiter = rate_limiter
 
     def run_forever(self):
-        api = self.adapters.get("PLATFORM")
-
+        adapter = self.adapters.get(
+    Config.PLATFORM_NAME
+    )
         if not api:
             raise RuntimeError(
                 "adapter is missing. Check BOT_TOKEN in .env"

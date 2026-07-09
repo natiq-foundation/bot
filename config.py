@@ -20,9 +20,14 @@ class Config:
         "API_URL",
         "",
     )
-    PLATFORM: str = os.getenv(
-    "PLATFORM",
-    "",
+    PLATFORM_NAME = os.getenv(
+    "PLATFORM_NAME",
+    "telegram",
+    )
+
+    PLATFORM_API = os.getenv(
+    "PLATFORM_API",
+    "https://api.telegram.org",
     )
 
     # =====================================================
