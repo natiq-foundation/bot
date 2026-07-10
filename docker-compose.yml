@@ -1,60 +1,76 @@
 services:
+
   postgres:
-    image: postgres:16
-    container_name: natiq-postgres
+
+    image: postgres:17
+
+    container_name: quran-postgres
+
     restart: unless-stopped
 
     environment:
-      POSTGRES_USER: natiq
-      POSTGRES_PASSWORD: natiq
-      POSTGRES_DB: natiq_bot
+      POSTGRES_DB: quran_bot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
 
-    ports:
-      - "5432:5432"
+#    ports:
+#      - "5432:5432"
 
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 5s
 
   redis:
+
     image: redis:7-alpine
-    container_name: natiq-redis
+
+    container_name: quran-redis
+
     restart: unless-stopped
 
-    ports:
-      - "6379:6379"
+#    ports:
+#      - "6379:6379"
+
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+
+    volumes:
+      - redis_data:/data
 
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 10
-      start_period: 5s
 
   bot:
+    working_dir: /app
     build: .
 
-    container_name: natiq-bot
+    container_name: quran-bot
 
     restart: unless-stopped
 
+    env_file:
+      - .env.docker
+
     depends_on:
+
       postgres:
         condition: service_healthy
+
       redis:
         condition: service_healthy
 
-    env_file:
-      - .env
-
-    volumes:
-      - .:/app
-
 volumes:
-  postgres-data:
+
+  postgres_data:
+
+  redis_data:

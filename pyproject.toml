@@ -1,0 +1,41 @@
+[project]
+
+name = "quran-bot"
+
+version = "0.1.0"
+
+description = "Telegram Quran Bot"
+
+requires-python = ">=3.12"
+
+dependencies = [
+
+    "python-telegram-bot[job-queue]>=22.2",
+
+    "SQLAlchemy>=2.0",
+
+    "asyncpg",
+
+    "alembic",
+
+    "redis[hiredis]",
+
+    "httpx",
+
+    "pydantic>=2",
+
+    "pydantic-settings",
+
+]
+
+[tool.black]
+
+line-length = 88
+
+[tool.ruff]
+
+line-length = 88
+
+[tool.pytest.ini_options]
+
+asyncio_mode = "auto"

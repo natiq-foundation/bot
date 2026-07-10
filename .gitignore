@@ -1,10 +1,23 @@
-env
+# Environment
 .env
-.vscode
-.venv
-__pycache__
-*.pyc
-dist
-node_modules
-rest-client-tests
-logs
+.env.local
+.env.docker
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Cache
+.pytest_cache/
+.mypy_cache/
+
+# OS
+.DS_Store
