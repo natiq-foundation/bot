@@ -1,111 +1,186 @@
 from __future__ import annotations
 
-import logging
+from functools import lru_cache
+from zoneinfo import ZoneInfo
 
-from telegram import Update
-from telegram.ext import CommandHandler, ContextTypes
-
-from app.api.checker import MessengerFeature
-from app.bot.guards.rate_limit import RateLimitRule, rate_limit
-from app.core.config import get_settings
-from app.i18n import detect_language, get_message
-from app.schemas.ayah import Ayah
-from app.ui.keyboards import random_ayah_keyboard
-
-logger = logging.getLogger(__name__)
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def format_ayah(ayah: Ayah) -> str:
-    """Format ayah with readable spacing."""
+class Settings(BaseSettings):
+    """
+    Application settings loaded from environment variables.
+
+    Environment variables:
+    - BOT_TOKEN: Telegram bot token (required)
+    - DATABASE_URL: PostgreSQL connection URL
+    - REDIS_URL: Redis connection URL
+    - LOG_LEVEL: Logging level (DEBUG, INFO, WARNING, ERROR)
+    - QURAN_MUSHAF: Quran script (default: hafs)
+    - QURAN_TRANSLATION_LANGUAGE: Translation language (default: fa)
+    - NATIQ_API_TIMEOUT: API timeout in seconds (default: 120)
+    """
+
+    # Application
+    APP_NAME: str = "Quran Bot"
+    DEBUG: bool = False
+    LOG_LEVEL: str = "INFO"
+
+    # Bot
+    BOT_TOKEN: str = ""
+    BOT_USERNAME: str = "@NatiqChatBot"
+    BOT_API: str = "https://api.telegram.org"
+    PLATFORM: str = "TELEGRAM"
+    BOT_LANGUAGE: str = "fa"
+    ADMIN_USER_IDS: str = ""  # Comma-separated list
+
+    # Database
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@postgres:5432/quran_bot"
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        """Ensure DATABASE_URL is not empty."""
+        if not v or not v.strip():
+            raise ValueError("DATABASE_URL must be set")
+        return v.strip()
+
+    # Redis
+    REDIS_URL: str = "redis://redis:6379/0"
+
+    # Natiq API
+    NATIQ_API_URL: str = "https://api.natiq.net/"
+    NATIQ_PRIMARY_API: str = "https://api.natiq.net/"
+    NATIQ_SECONDARY_API: str | None = None
+    NATIQ_API_TOKEN: str | None = None
+    NATIQ_API_TIMEOUT: int = 120
+
+    # Quran
+    QURAN_MUSHAF: str = "hafs"
+    QURAN_TRANSLATION_LANGUAGE: str = "fa"
+    QURAN_TRANSLATOR: str | None = None
+
+    # Daily Ayah Settings
+    # Hardcoded base: UTC (Greenwich) at 00:00
+    # Environment override: Set to Asia/Riyadh at 03:15 in .env
+    DAILY_AYAH_DEFAULT_TIME: str = "03:15"  # Default time in configured timezone
+    DAILY_AYAH_DEFAULT_TIMEZONE: str = "Asia/Riyadh"  # Default timezone for users
+
+    # Cache
+    CACHE_ENABLED: bool = True
+
+    # Timezone
+    TZ: str = "UTC"
+
+    @field_validator("NATIQ_API_TIMEOUT", mode="before")
+    @classmethod
+    def validate_timeout(cls, v: int) -> int:
+        """Validate API timeout is positive."""
+        if not isinstance(v, int):
+            v = int(v)
+
+        if v <= 0:
+            raise ValueError("NATIQ_API_TIMEOUT must be greater than zero")
+
+        return v
+
+    @field_validator("NATIQ_PRIMARY_API", mode="before")
+    @classmethod
+    def validate_api_url(cls, v: str) -> str:
+        """Validate API URL is not empty."""
+        if not v or not v.strip():
+            raise ValueError("NATIQ_PRIMARY_API must not be empty")
+
+        return v.strip()
+
+    @property
+    def admin_user_ids(self) -> set[int]:
+        """
+        Parse comma-separated admin user IDs.
+
+        Returns:
+            Set of admin user IDs
+        """
+        values: set[int] = set()
+
+        if not self.ADMIN_USER_IDS:
+            return values
+
+        for raw_item in self.ADMIN_USER_IDS.split(","):
+            item = raw_item.strip()
+
+            if not item:
+                continue
+
+            try:
+                values.add(int(item))
+            except ValueError:
+                continue
+
+        return values
+
+    @property
+    def api_headers(self) -> dict[str, str]:
+        """
+        Get HTTP headers for API requests.
+
+        Returns:
+            Dictionary with Accept and optional Authorization headers
+        """
+        headers = {"Accept": "application/json"}
+
+        if self.NATIQ_API_TOKEN:
+            headers["Authorization"] = f"Bearer {self.NATIQ_API_TOKEN}"
+
+        return headers
+
+    model_config = SettingsConfigDict(
+        env_file=[".env", ".env.local", ".env.docker"],
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=True,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """
+    Get cached settings instance.
+
+    Returns:
+        Settings object
+    """
+    return Settings()
+
+
+def resolve_timezone(timezone_name: str | None) -> ZoneInfo:
+    """
+    Resolve a timezone name to a ZoneInfo, falling back to the configured
+    default timezone and finally UTC when the name is missing or invalid.
+    """
     settings = get_settings()
-    parts: list[str] = []
-
-    if ayah.surah_icon:
-        parts.append(f"{ayah.surah_icon} {ayah.surah_name}")
-    else:
-        parts.append(ayah.surah_name)
-
-    if ayah.show_bismillah_line and ayah.bismillah_text:
-        parts.append(ayah.bismillah_text)
-
-    parts.append(f"📖 {ayah.text} ﴿{ayah.ayah_number}﴾")
-
-    if ayah.translation:
-        parts.append(f"📝 {ayah.translation} ({ayah.ayah_number})")
-
-    parts.append(f"📱 {settings.BOT_USERNAME}")
-
-    return "\n\n".join(parts)
-
-
-@rate_limit(
-    RateLimitRule(
-        limit=5,
-        window_seconds=15,
-    )
-)
-async def random_ayah(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-) -> None:
-    """Send a random Quran ayah."""
-    if not update.message:
-        return
-
-    language = detect_language(
-        update.effective_user.language_code if update.effective_user else None
-    )
-
     try:
-        container = context.application.bot_data.get("container")
+        return ZoneInfo(timezone_name or settings.DAILY_AYAH_DEFAULT_TIMEZONE)
+    except Exception:
+        return ZoneInfo("UTC")
 
-        if not container:
-            logger.warning("Container not available")
-            settings = get_settings()
-            await update.message.reply_text(
-                f"{get_message('random_ayah_error', language)}\n\n📱 {settings.BOT_USERNAME}"
-            )
-            return
 
-        if not container.quran_cache_ready:
-            settings = get_settings()
-            await update.message.reply_text(
-                f"{get_message('random_ayah_error', language)}\n\n📱 {settings.BOT_USERNAME}"
-            )
-            return
+def validate_runtime_settings() -> Settings:
+    """
+    Validate runtime settings at startup.
 
-        ayah: Ayah = await container.provider.random_ayah()
+    Returns:
+        Settings object
 
-        # Track in database
-        if update.effective_user:
-            chat = await container.chat_repository.get_by_telegram_id(
-                update.effective_user.id
-            )
-            if chat:
-                await container.sent_history_repository.log_sent(
-                    chat_uuid=chat.uuid,
-                    ayah_uuid=ayah.uuid,
-                    reading_mode="ayah",
-                )
+    Raises:
+        ValueError: If BOT_TOKEN is missing
+    """
+    settings = get_settings()
 
-        reply_markup = None
-        if context.application.bot_data["feature_checker"].supports(
-            MessengerFeature.INLINE_KEYBOARD
-        ):
-            reply_markup = random_ayah_keyboard(ayah.uuid, language)
-
-        await update.message.reply_text(
-            text=format_ayah(ayah),
-            reply_markup=reply_markup,
+    if not settings.BOT_TOKEN or not settings.BOT_TOKEN.strip():
+        raise ValueError(
+            "BOT_TOKEN environment variable must be set. "
+            "Get it from @BotFather on Telegram."
         )
 
-    except Exception as exc:
-        logger.exception("Random ayah failed: %s", exc)
-        settings = get_settings()
-        await update.message.reply_text(
-            f"{get_message('random_ayah_error', language)}\n\n📱 {settings.BOT_USERNAME}"
-        )
-
-
-def get_handler() -> CommandHandler:
-    return CommandHandler("random", random_ayah)
+    return settings

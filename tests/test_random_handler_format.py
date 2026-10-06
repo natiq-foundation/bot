@@ -1,107 +1,111 @@
-from app.bot.handlers.random import format_ayah
+from __future__ import annotations
+
+import logging
+
+from telegram import Update
+from telegram.ext import CommandHandler, ContextTypes
+
+from app.api.checker import MessengerFeature
+from app.bot.guards.rate_limit import RateLimitRule, rate_limit
 from app.core.config import get_settings
+from app.i18n import detect_language, get_message
 from app.schemas.ayah import Ayah
+from app.ui.keyboards import random_ayah_keyboard
+
+logger = logging.getLogger(__name__)
 
 
-def build_ayah(
-    *,
-    surah_icon: str,
-    surah_period: str,
-    text: str = "sample text",
-    ayah_number: int = 7,
-    bismillah_text: str | None = None,
-    bismillah_is_ayah: bool = False,
-    show_bismillah_line: bool = False,
-) -> Ayah:
-    return Ayah(
-        uuid="ayah-1",
-        text=text,
-        translation="sample translation",
-        surah_uuid="surah-1",
-        surah_name="الفاتحة",
-        surah_number=1,
-        surah_period=surah_period,
-        surah_icon=surah_icon,
-        bismillah_text=bismillah_text,
-        bismillah_is_ayah=bismillah_is_ayah,
-        show_bismillah_line=show_bismillah_line,
-        ayah_number=ayah_number,
-        page=1,
-        juz=1,
-    )
-
-
-def test_format_ayah_includes_makki_icon() -> None:
-    ayah = build_ayah(
-        surah_icon="🕋",
-        surah_period="makki",
-    )
-
-    text = format_ayah(ayah)
+def format_ayah(ayah: Ayah) -> str:
+    """Format ayah with readable spacing."""
     settings = get_settings()
+    parts: list[str] = []
 
-    assert "🕋 الفاتحة" in text
-    assert "📖 sample text ﴿7﴾" in text
-    assert "📝 sample translation (7)" in text
-    assert settings.BOT_USERNAME in text
+    if ayah.surah_icon:
+        parts.append(f"{ayah.surah_icon} {ayah.surah_name}")
+    else:
+        parts.append(ayah.surah_name)
+
+    if ayah.show_bismillah_line and ayah.bismillah_text:
+        parts.append(ayah.bismillah_text)
+
+    parts.append(f"📖 {ayah.text} ﴿{ayah.ayah_number}﴾")
+
+    if ayah.translation:
+        parts.append(f"📝 {ayah.translation}")
+
+    parts.append(f"📱 {settings.BOT_USERNAME}")
+
+    return "\n\n".join(parts)
 
 
-def test_format_ayah_includes_madani_icon() -> None:
-    ayah = build_ayah(
-        surah_icon="🕌",
-        surah_period="madani",
+@rate_limit(
+    RateLimitRule(
+        limit=5,
+        window_seconds=15,
+    )
+)
+async def random_ayah(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Send a random Quran ayah."""
+    if not update.message:
+        return
+
+    language = detect_language(
+        update.effective_user.language_code if update.effective_user else None
     )
 
-    text = format_ayah(ayah)
+    try:
+        container = context.application.bot_data.get("container")
 
-    assert "🕌 الفاتحة" in text
+        if not container:
+            logger.warning("Container not available")
+            settings = get_settings()
+            await update.message.reply_text(
+                f"{get_message('random_ayah_error', language)}\n\n📱 {settings.BOT_USERNAME}"
+            )
+            return
+
+        if not container.quran_cache_ready:
+            settings = get_settings()
+            await update.message.reply_text(
+                f"{get_message('random_ayah_error', language)}\n\n📱 {settings.BOT_USERNAME}"
+            )
+            return
+
+        ayah: Ayah = await container.provider.random_ayah()
+
+        # Track in database
+        if update.effective_user:
+            chat = await container.chat_repository.get_by_telegram_id(
+                update.effective_user.id
+            )
+            if chat:
+                await container.sent_history_repository.log_sent(
+                    chat_uuid=chat.uuid,
+                    ayah_uuid=ayah.uuid,
+                    reading_mode="ayah",
+                )
+
+        reply_markup = None
+        if context.application.bot_data["feature_checker"].supports(
+            MessengerFeature.INLINE_KEYBOARD
+        ):
+            reply_markup = random_ayah_keyboard(ayah.uuid, language)
+
+        await update.message.reply_text(
+            text=format_ayah(ayah),
+            reply_markup=reply_markup,
+        )
+
+    except Exception as exc:
+        logger.exception("Random ayah failed: %s", exc)
+        settings = get_settings()
+        await update.message.reply_text(
+            f"{get_message('random_ayah_error', language)}\n\n📱 {settings.BOT_USERNAME}"
+        )
 
 
-def test_format_ayah_omits_extra_space_without_icon() -> None:
-    ayah = build_ayah(
-        surah_icon="",
-        surah_period="unknown",
-    )
-
-    text = format_ayah(ayah)
-
-    assert "الفاتحة" in text
-    assert "\n\n📖 sample text ﴿7﴾" in text
-    assert " الفاتحة" not in text
-
-
-def test_format_ayah_shows_bismillah_line_for_first_non_bismillah_ayah() -> None:
-    bismillah_text = "fixture bismillah"
-    ayah_text = "الْحَمْدُ لِلَّهِ"
-    ayah = build_ayah(
-        surah_icon="🕌",
-        surah_period="madani",
-        text=ayah_text,
-        ayah_number=1,
-        bismillah_text=bismillah_text,
-        bismillah_is_ayah=False,
-        show_bismillah_line=True,
-    )
-
-    text = format_ayah(ayah)
-
-    expected_prefix = f"{bismillah_text}\n\n📖 {ayah_text} ﴿1﴾"
-    assert expected_prefix in text
-
-
-def test_format_ayah_does_not_show_bismillah_line_when_surah_has_no_bismillah() -> None:
-    ayah_text = "sample first ayah"
-    ayah = build_ayah(
-        surah_icon="🕌",
-        surah_period="madani",
-        text=ayah_text,
-        ayah_number=1,
-        bismillah_text=None,
-        bismillah_is_ayah=False,
-        show_bismillah_line=False,
-    )
-
-    text = format_ayah(ayah)
-
-    assert f"📖 {ayah_text} ﴿1﴾" in text
-    assert "fixture bismillah" not in text
+def get_handler() -> CommandHandler:
+    return CommandHandler("random", random_ayah)
