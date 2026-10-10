@@ -123,6 +123,19 @@ async def track_chat_membership(
                     chat.id,
                 )
 
+                # Fetch and save admins
+                try:
+                    admins = await context.bot.get_chat_administrators(chat.id)
+                    admin_ids = [
+                        admin.user.id for admin in admins if not admin.user.is_bot
+                    ]
+                    await chat_repo.save_chat_admins(chat.id, chat.type, admin_ids)
+                    logger.info(
+                        "Saved %d admins for chat_id=%s", len(admin_ids), chat.id
+                    )
+                except Exception as e:
+                    logger.error("Failed to save admins for chat_id=%s: %s", chat.id, e)
+
                 try:
                     await context.bot.send_message(
                         chat_id=chat.id,
@@ -301,6 +314,9 @@ async def admin_settings_command(
                 "❌ You must be an administrator or owner with management permissions to configure this chat.",
             )
             return
+
+        # Persist admin relationship
+        await chat_repo.add_chat_admin(chat.id, chat.type, user_id)
 
         db_chat = await chat_repo.get_by_telegram_id(chat.id)
         if not db_chat:

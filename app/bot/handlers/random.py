@@ -16,28 +16,23 @@ logger = logging.getLogger(__name__)
 
 
 def format_ayah(ayah: Ayah) -> str:
-    """Format ayah in a language-agnostic way."""
+    """Format ayah with readable spacing."""
     settings = get_settings()
     parts: list[str] = []
 
-    # Surah header: makki/madani icon + surah name (no trailing space if no icon)
     if ayah.surah_icon:
         parts.append(f"{ayah.surah_icon} {ayah.surah_name}")
     else:
         parts.append(ayah.surah_name)
 
-    # Bismillah (shown before the ayah text when applicable)
     if ayah.show_bismillah_line and ayah.bismillah_text:
         parts.append(ayah.bismillah_text)
 
-    # Ayah text
     parts.append(f"📖 {ayah.text} ﴿{ayah.ayah_number}﴾")
 
-    # Translation (if available)
     if ayah.translation:
-        parts.append(f"📝 {ayah.translation} ({ayah.ayah_number})")
+        parts.append(f"📝 {ayah.translation}")
 
-    # Attribution
     parts.append(f"📱 {settings.BOT_USERNAME}")
 
     return "\n\n".join(parts)

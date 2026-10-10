@@ -113,7 +113,7 @@ async def _build_admin_dashboard(
     settings = get_settings()
     container = context.application.bot_data.get("container")
 
-    admin_links = []
+    admin_names = []
     for admin_id in sorted(settings.admin_user_ids):
         display_label = f"Admin {admin_id}"
         try:
@@ -128,9 +128,9 @@ async def _build_admin_dashboard(
         except Exception:
             pass
 
-        admin_links.append(f"{display_label} (chat id: {admin_id})")
+        admin_names.append(display_label)
 
-    admin_list_str = ", ".join(admin_links) if admin_links else "None"
+    admin_list_str = ", ".join(admin_names) if admin_names else "None"
 
     cache_status_text = "Not Loaded"
     if container and container.loader:

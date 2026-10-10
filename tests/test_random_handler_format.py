@@ -42,7 +42,8 @@ def test_format_ayah_includes_makki_icon() -> None:
 
     assert "🕋 الفاتحة" in text
     assert "📖 sample text ﴿7﴾" in text
-    assert "📝 sample translation (7)" in text
+    assert "📝 sample translation" in text
+    assert "(7)" not in text
     assert settings.BOT_USERNAME in text
 
 
@@ -67,6 +68,7 @@ def test_format_ayah_omits_extra_space_without_icon() -> None:
 
     assert "الفاتحة" in text
     assert "\n\n📖 sample text ﴿7﴾" in text
+    assert "📝 sample translation" in text
     assert " الفاتحة" not in text
 
 

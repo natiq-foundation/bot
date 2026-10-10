@@ -6,15 +6,37 @@ from telegram import Update
 from telegram.ext import CallbackQueryHandler, ContextTypes
 
 from app.api.checker import MessengerFeature
+from app.bot.handlers.admin_settings import _is_chat_admin
 from app.bot.handlers.daily_settings import daily_settings
 from app.bot.handlers.random import format_ayah
 from app.bot.handlers.random_page import format_page, generate_random_page
 from app.core.container import Container
+from app.core.config import get_settings
 from app.i18n import detect_language, get_message
 from app.schemas.ayah import Ayah
 from app.ui.keyboards.random import random_ayah_keyboard, random_page_keyboard
 
 logger = logging.getLogger(__name__)
+
+
+async def _check_group_permissions(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> bool:
+    chat = update.effective_chat
+    user = update.effective_user
+    if not chat or not user:
+        return True
+
+    if chat.type in ("group", "supergroup", "channel"):
+        settings = get_settings()
+        if user.id in settings.admin_user_ids:
+            return True
+        if await _is_chat_admin(update, context, chat.id):
+            return True
+        return False
+
+    return True
 
 
 async def _reply_with_ayah(
@@ -161,6 +183,13 @@ async def _handle_next_ayah(
     if query is None:
         return
 
+    if not await _check_group_permissions(update, context):
+        await query.answer(
+            "❌ Only group administrators can interact with buttons.",
+            show_alert=True,
+        )
+        return
+
     await query.answer()
 
     try:
@@ -179,14 +208,10 @@ async def _handle_next_ayah(
                 update.effective_user.id
             )
 
-        delivery_mode = chat.delivery_mode if chat else "random"
-
-        if delivery_mode == "sequential":
-            ayah: Ayah = await container.provider.next_ayah(
-                current_uuid=query.data.split(":")[1],
-            )
-        else:
-            ayah: Ayah = await container.provider.random_ayah()
+        # Always fetch the true next sequential ayah of the ayah clicked
+        ayah: Ayah = await container.provider.next_ayah(
+            current_uuid=query.data.split(":")[1],
+        )
 
         if chat and ayah:
             await container.sent_history_repository.log_sent(
@@ -219,6 +244,13 @@ async def random_ayah_callback(
     if query is None:
         return
 
+    if not await _check_group_permissions(update, context):
+        await query.answer(
+            "❌ Only group administrators can interact with buttons.",
+            show_alert=True,
+        )
+        return
+
     await query.answer()
 
     try:
@@ -237,16 +269,7 @@ async def random_ayah_callback(
                 update.effective_user.id
             )
 
-        delivery_mode = chat.delivery_mode if chat else "random"
-
-        if delivery_mode == "sequential":
-            current_uuid = context.user_data.get("current_ayah_uuid")
-            if current_uuid:
-                ayah = await container.provider.next_ayah(current_uuid=current_uuid)
-            else:
-                ayah = await container.provider.random_ayah()
-        else:
-            ayah: Ayah = await container.provider.random_ayah()
+        ayah: Ayah = await container.provider.random_ayah()
 
         if chat and ayah:
             await container.sent_history_repository.log_sent(
@@ -279,6 +302,13 @@ async def _handle_next_page(
     if query is None:
         return
 
+    if not await _check_group_permissions(update, context):
+        await query.answer(
+            "❌ Only group administrators can interact with buttons.",
+            show_alert=True,
+        )
+        return
+
     await query.answer()
 
     try:
@@ -297,8 +327,6 @@ async def _handle_next_page(
                 update.effective_user.id
             )
 
-        delivery_mode = chat.delivery_mode if chat else "random"
-
         current_ayahs = await container.provider.get_ayahs_by_first_ayah_uuid(
             query.data.split(":")[1]
         )
@@ -308,12 +336,9 @@ async def _handle_next_page(
             else (context.user_data.get("current_page") or 1)
         )
 
-        if delivery_mode == "sequential":
-            next_page = current_page + 1
-            page_ayahs = await container.provider.get_ayahs_by_page(next_page)
-            if not page_ayahs:
-                page_ayahs = await generate_random_page(container)
-        else:
+        next_page = current_page + 1
+        page_ayahs = await container.provider.get_ayahs_by_page(next_page)
+        if not page_ayahs:
             page_ayahs = await generate_random_page(container)
 
         if page_ayahs:
@@ -358,6 +383,13 @@ async def _handle_page_translation(
     query = update.callback_query
 
     if query is None:
+        return
+
+    if not await _check_group_permissions(update, context):
+        await query.answer(
+            "❌ Only group administrators can interact with buttons.",
+            show_alert=True,
+        )
         return
 
     await query.answer()
@@ -420,6 +452,13 @@ async def _handle_page_no_translation(
     if query is None:
         return
 
+    if not await _check_group_permissions(update, context):
+        await query.answer(
+            "❌ Only group administrators can interact with buttons.",
+            show_alert=True,
+        )
+        return
+
     await query.answer()
 
     try:
@@ -478,6 +517,14 @@ async def _handle_open_dailysettings(
     query = update.callback_query
     if query is None:
         return
+
+    if not await _check_group_permissions(update, context):
+        await query.answer(
+            "❌ Only group administrators can interact with buttons.",
+            show_alert=True,
+        )
+        return
+
     await query.answer()
     await daily_settings(update, context)
 

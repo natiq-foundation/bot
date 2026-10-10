@@ -16,8 +16,14 @@ shell:
 lint:
 	ruff check .
 
+lint-fix:
+	ruff check . --fix
+
 format:
 	black .
+
+format-check:
+	black --check .
 
 test:
 	pytest

@@ -31,7 +31,7 @@ def random_ayah_keyboard(
         rows.append(
             [
                 InlineKeyboardButton(
-                    text="⏰ Daily Send Settings",
+                    text=get_message("main_menu_daily_settings_button", language),
                     callback_data="open_dailysettings",
                 ),
             ]
@@ -88,7 +88,7 @@ def random_page_keyboard(
         rows.append(
             [
                 InlineKeyboardButton(
-                    text="⏰ Daily Send Settings",
+                    text=get_message("main_menu_daily_settings_button", language),
                     callback_data="open_dailysettings",
                 ),
             ]

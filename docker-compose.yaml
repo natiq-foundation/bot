@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: "${DOCKER_MIRROR:-docker.io}/library/postgres:17-alpine"
+    container_name: "${POSTGRES_CONTAINER_NAME:-quran-postgres}"
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-quran_bot}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    # Host-only access; other containers use postgres:5432 over the Compose network.
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-quran_bot}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  redis:
+    image: "${DOCKER_MIRROR:-docker.io}/library/redis:7-alpine"
+    container_name: "${REDIS_CONTAINER_NAME:-quran-redis}"
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  bot:
+    image: "${BOT_IMAGE:-natiqquran/bot:latest}"
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_IMAGE: "${DOCKER_MIRROR:-docker.io}/library/python:3.12-slim"
+        PIP_INDEX_URL: "${PIP_INDEX_URL:-https://pypi.org/simple}"
+        PIP_EXTRA_INDEX_URL: "${PIP_EXTRA_INDEX_URL:-}"
+        PIP_TRUSTED_HOST: "${PIP_TRUSTED_HOST:-}"
+        PIP_TIMEOUT: "${PIP_TIMEOUT:-60}"
+        PIP_RETRIES: "${PIP_RETRIES:-5}"
+    container_name: "${BOT_CONTAINER_NAME:-quran-bot}"
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-quran_bot}"
+      POSTGRES_DB: "${POSTGRES_DB:-quran_bot}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_URL: "redis://redis:6379/${REDIS_DB:-0}"
+    # IMPORTANT: use short depends_on syntax. podman-compose 1.6.0 can hang
+    # while polling service_healthy conditions. The entrypoint waits for both
+    # services before applying migrations or launching the bot.
+    depends_on:
+      - postgres
+      - redis
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    stop_grace_period: 30s
+
+volumes:
+  postgres_data:
+  redis_data:

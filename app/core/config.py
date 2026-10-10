@@ -135,7 +135,7 @@ class Settings(BaseSettings):
         return headers
 
     model_config = SettingsConfigDict(
-        env_file=[".env", ".env.docker"],
+        env_file=[".env", ".env.local", ".env.docker"],
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=True,

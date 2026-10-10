@@ -29,37 +29,34 @@ def format_page(
     *,
     show_translation: bool = False,
 ) -> str:
-    """Format a page (group of ayahs), optionally including translations (no divider lines)."""
+    """Format a page (group of ayahs), supporting multi-surah transitions and bismillah lines."""
     settings = get_settings()
     parts: list[str] = []
 
-    # Surah header
-    if ayahs:
-        first_ayah = ayahs[0]
-        page_num = first_ayah.page if first_ayah.page else "?"
-        icon = first_ayah.surah_icon if first_ayah.surah_icon else "🕋"
-        parts.append(f"{icon} {first_ayah.surah_name} (Page {page_num})")
+    current_surah_uuid: str | None = None
+    page_num = ayahs[0].page if ayahs and ayahs[0].page else "?"
 
-        if show_translation:
-            if first_ayah.show_bismillah_line and first_ayah.bismillah_text:
-                parts.append(first_ayah.bismillah_text)
-            parts.append("")
-        else:
+    for ayah in ayahs:
+        # Check if surah changes on this page (multi-surah page transition)
+        if ayah.surah_uuid != current_surah_uuid:
+            current_surah_uuid = ayah.surah_uuid
+            icon = ayah.surah_icon if ayah.surah_icon else "🕋"
+            parts.append(f"\n{icon} *{ayah.surah_name}* (Page {page_num})")
+            if ayah.show_bismillah_line and ayah.bismillah_text:
+                parts.append(ayah.bismillah_text)
             parts.append("")
 
-    # Format each ayah in the page without separator lines
-    for i, ayah in enumerate(ayahs):
         parts.append(f"📖 {ayah.text} ﴿{ayah.ayah_number}﴾")
 
-        if show_translation:
-            if ayah.translation:
-                parts.append(f"📝 {ayah.translation}")
+        if show_translation and ayah.translation:
+            parts.append(f"📝 {ayah.translation}")
+            parts.append("")
 
     # Attribution
     parts.append("")
     parts.append(f"📱 {settings.BOT_USERNAME}")
 
-    return "\n".join(parts)
+    return "\n".join(parts).strip()
 
 
 @rate_limit(
@@ -98,17 +95,13 @@ async def random_page(
             )
             return
 
-        # Generate random page
         page_ayahs = await generate_random_page(container)
 
-        # Reset translation state for new random page
         context.user_data["show_translation"] = False
 
-        # Store current page number for next page navigation
         if page_ayahs:
             context.user_data["current_page"] = page_ayahs[0].page
 
-        # Track in database
         if update.effective_user and page_ayahs:
             chat = await container.chat_repository.get_by_telegram_id(
                 update.effective_user.id
@@ -135,6 +128,7 @@ async def random_page(
         await update.message.reply_text(
             text=format_page(page_ayahs),
             reply_markup=reply_markup,
+            parse_mode="Markdown",
         )
 
     except Exception as exc:
