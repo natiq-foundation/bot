@@ -55,9 +55,7 @@ class QuranService:
         return await self._container.provider.random_page()
 
     async def page_for_ayah(self, ayah_uuid: str) -> list[Ayah]:
-        return await self._container.provider.get_ayahs_by_first_ayah_uuid(
-            ayah_uuid
-        )
+        return await self._container.provider.get_ayahs_by_first_ayah_uuid(ayah_uuid)
 
     async def next_page(self, first_ayah_uuid: str | None) -> list[Ayah]:
         if not first_ayah_uuid:
@@ -141,9 +139,7 @@ class QuranService:
             return
 
         try:
-            chat = await self._container.chat_repository.get_by_telegram_id(
-                telegram_id
-            )
+            chat = await self._container.chat_repository.get_by_telegram_id(telegram_id)
             if chat is None:
                 return
 

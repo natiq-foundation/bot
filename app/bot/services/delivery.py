@@ -54,9 +54,7 @@ class DeliveryTarget:
             bot=context.bot,
             chat_id=chat_id,
             language=detect_language(
-                update.effective_user.language_code
-                if update.effective_user
-                else None
+                update.effective_user.language_code if update.effective_user else None
             ),
             message=message,
             edit=edit,
