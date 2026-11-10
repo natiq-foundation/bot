@@ -1,6 +1,6 @@
 import asyncio
 
-from app.bot.handlers.superadmin import _resolve_is_superadmin
+from app.bot.guards.permissions import resolve_is_superadmin
 
 
 class StubChat:
@@ -26,7 +26,7 @@ def test_resolve_is_superadmin_allows_env_configured_admin_without_db_lookup() -
     repository = StubChatRepository(is_admin=False)
 
     result = asyncio.run(
-        _resolve_is_superadmin(
+        resolve_is_superadmin(
             123,
             configured_admin_ids={123},
             chat_repository=repository,
@@ -41,7 +41,7 @@ def test_resolve_is_superadmin_falls_back_to_database_flag() -> None:
     repository = StubChatRepository(is_admin=True)
 
     result = asyncio.run(
-        _resolve_is_superadmin(
+        resolve_is_superadmin(
             456,
             configured_admin_ids=set(),
             chat_repository=repository,
@@ -56,7 +56,7 @@ def test_resolve_is_superadmin_denies_when_neither_source_grants_access() -> Non
     repository = StubChatRepository(is_admin=False)
 
     result = asyncio.run(
-        _resolve_is_superadmin(
+        resolve_is_superadmin(
             789,
             configured_admin_ids={111},
             chat_repository=repository,

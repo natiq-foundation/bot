@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 from telegram import (
-    CallbackQuery,
     ChatMemberUpdated,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -20,60 +19,17 @@ from telegram.ext import (
     MessageHandler,
 )
 
-from app.bot.handlers.daily_settings import TIMEZONE_CONTINENTS
+from app.bot.guards.permissions import is_chat_admin as _is_chat_admin
 from app.core.config import get_settings
+from app.core.constants import TIMEZONE_CONTINENTS
 from app.database.repositories.chat import ChatRepository
 from app.i18n import detect_language
-
-if TYPE_CHECKING:
-    pass
+from app.ui.helpers import (
+    reply_or_edit as _reply_or_edit,
+    safe_edit_message_text as _safe_edit_message_text,
+)
 
 logger = logging.getLogger(__name__)
-
-
-async def _safe_edit_message_text(
-    query: CallbackQuery,
-    text: str,
-    *,
-    reply_markup: InlineKeyboardMarkup | None = None,
-    parse_mode: str | None = None,
-) -> None:
-    try:
-        await query.edit_message_text(
-            text,
-            reply_markup=reply_markup,
-            parse_mode=parse_mode,
-        )
-    except BadRequest:
-        pass
-
-
-async def _is_chat_admin(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-    chat_id: int,
-) -> bool:
-    user = update.effective_user
-    if not user:
-        return False
-
-    settings = get_settings()
-    if user.id in settings.admin_user_ids:
-        return True
-
-    try:
-        member = await context.bot.get_chat_member(chat_id=chat_id, user_id=user.id)
-        if member.status in ("creator", "administrator"):
-            return True
-    except Exception as e:
-        logger.debug(
-            "get_chat_member check failed for chat_id=%s, user_id=%s: error=%s",
-            chat_id,
-            user.id,
-            e,
-        )
-
-    return False
 
 
 async def track_chat_membership(
@@ -250,31 +206,6 @@ async def _render_chat_settings(
     else:
         await update.message.reply_text(
             message, reply_markup=reply_markup, parse_mode="Markdown"
-        )
-
-
-async def _reply_or_edit(
-    update: Update,
-    text: str,
-    *,
-    reply_markup: InlineKeyboardMarkup | None = None,
-    parse_mode: str | None = None,
-) -> None:
-    if update.callback_query and update.callback_query.message:
-        try:
-            await update.callback_query.message.edit_text(
-                text,
-                reply_markup=reply_markup,
-                parse_mode=parse_mode,
-            )
-            return
-        except Exception:
-            pass
-    if update.effective_message:
-        await update.effective_message.reply_text(
-            text,
-            reply_markup=reply_markup,
-            parse_mode=parse_mode,
         )
 
 
