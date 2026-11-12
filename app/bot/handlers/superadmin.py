@@ -4,76 +4,19 @@ import logging
 import shutil
 import time
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Protocol
 
 import psutil
 from telegram import Update
 from telegram.ext import CommandHandler, ContextTypes
 
-from app.bot.guards.rate_limit import RateLimitRule, rate_limit
+from app.bot.guards.permissions import is_superadmin as _is_superadmin
 from app.core.config import get_settings
 from app.i18n import detect_language, get_message
 from app.ui.keyboards import main_menu_keyboard
 
-if TYPE_CHECKING:
-    from app.database.models.chat import Chat
-
 logger = logging.getLogger(__name__)
 
 PROCESS_START_TIME = time.time()
-
-
-class SupportsAdminLookup(Protocol):
-    async def get_by_telegram_id(self, telegram_id: int) -> "Chat | None": ...
-
-
-async def _resolve_is_superadmin(
-    telegram_id: int,
-    *,
-    configured_admin_ids: set[int],
-    chat_repository: SupportsAdminLookup,
-) -> bool:
-    if telegram_id in configured_admin_ids:
-        return True
-
-    try:
-        chat = await chat_repository.get_by_telegram_id(telegram_id)
-        if chat is None:
-            return False
-
-        if hasattr(chat, "is_admin"):
-            return chat.is_admin
-
-        return False
-    except Exception as e:
-        logger.warning(
-            "Error checking admin status in database: telegram_id=%s, error=%s",
-            telegram_id,
-            e,
-        )
-        return False
-
-
-async def _is_superadmin(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-) -> bool:
-    user = update.effective_user
-
-    if user is None or user.id is None:
-        return False
-
-    settings = get_settings()
-    container = context.application.bot_data.get("container")
-
-    if not container:
-        return False
-
-    return await _resolve_is_superadmin(
-        user.id,
-        configured_admin_ids=settings.admin_user_ids,
-        chat_repository=container.chat_repository,
-    )
 
 
 async def _get_system_stats(context: ContextTypes.DEFAULT_TYPE) -> str:
@@ -200,12 +143,6 @@ async def _reply_admin_denied(
     )
 
 
-@rate_limit(
-    RateLimitRule(
-        limit=1,
-        window_seconds=60,
-    )
-)
 async def reload_quran_cache(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -271,12 +208,6 @@ async def reload_quran_cache(
         )
 
 
-@rate_limit(
-    RateLimitRule(
-        limit=3,
-        window_seconds=10,
-    )
-)
 async def admin_settings_entry(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,

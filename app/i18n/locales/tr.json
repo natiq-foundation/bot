@@ -22,6 +22,7 @@
   "random_page_error": "Sayfa alınamadı.",
   "random_page_loading": "Kur'an önbelleği yükleniyor... lütfen bekleyin.",
   "next_ayah_error": "Ayet alınamadı",
+  "admin_only_buttons": "❌ Bu düğmeleri yalnızca grup yöneticileri kullanabilir.",
   "help": "📖 *Yardım - Komut Listesi*\n\n👤 *Kullanıcı Komutları*\n/start - Botu başlat ve başla\n/random - Rastgele bir Kur'an ayeti al\n/randompage - Rastgele bir Kur'an sayfası al\n/dailysettings - Günlük gönderim ayarları\n\n🔐 *Süperadmin Komutları*\n/superadmin - Yönetici paneli ve sistem durumu\n\n⚠️ *Not*: Süperadmin komutları sadece yetkili yöneticiler içindir.",
   "admin_dashboard": "🛠 *Bot Yönetici Paneli*\n\n{stats}\n\n⚙️ *Çevre Ayarları*\n{env_info}\n\n📡 *Bot & API Bilgisi*\n{bot_api_info}\n\n📊 *Gönderim İstatistikleri*\nToplam Ayetler: {total_ayahs}\nToplam Sayfalar: {total_pages}\n\n🤖 *Önbellek Durumu*: {quran_cache_ready}\nBot ID: {bot_id}\nAPI Durumu: {api_status}\n\n🔧 *Yönetici Komutları*\n/reload_cache - Kur'an önbelleğini yeniden yükle",
   "admin_access_denied": "Yönetici alanına erişim izniniz yok. Süperadmin listesinde değilsiniz. Lütfen chat_id'nizi botun sistem yöneticisine bildirin.\n\nSizin chat_id: {user_id}",

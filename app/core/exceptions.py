@@ -24,3 +24,7 @@ class DatabaseError(QuranBotError):
 
 class CacheError(QuranBotError):
     """Redis operation failed."""
+
+
+class QuranUnavailableError(QuranBotError):
+    """The Quran cache is not ready, so content cannot be served yet."""

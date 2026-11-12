@@ -4,16 +4,16 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass
-from functools import wraps
-from inspect import isawaitable
 from typing import Protocol
 
 from telegram import Update
 from telegram.error import BadRequest
-from telegram.ext import ContextTypes
+from telegram.ext import ApplicationHandlerStop, ContextTypes, TypeHandler
 
 from app.core.config import get_settings
 from app.i18n import detect_language, get_message
+
+logger = logging.getLogger(__name__)
 
 
 class SupportsRateLimitIncrement(Protocol):
@@ -25,10 +25,7 @@ class SupportsRateLimitIncrement(Protocol):
     ) -> int: ...
 
 
-logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RateLimitRule:
     limit: int
     window_seconds: int
@@ -104,13 +101,111 @@ def configure_rate_limiter(
     _redis_rate_limiter = RedisRateLimiter(redis_cache)
 
 
+def reset_rate_limits() -> None:
+    """Clear the in-memory fallback limiter (used on shutdown and in tests)."""
+    global _memory_rate_limiter
+    _memory_rate_limiter = InMemoryRateLimiter()
+
+
+# Every interactive action has an explicit rule. ``DEFAULT_RULE`` is the safety
+# net for future commands/callbacks, so a newly added button is never silently
+# left without a rate limit.
+COMMAND_RULES: dict[str, RateLimitRule] = {
+    "start": RateLimitRule(limit=3, window_seconds=10),
+    "help": RateLimitRule(limit=5, window_seconds=15),
+    "random": RateLimitRule(limit=5, window_seconds=15),
+    "randompage": RateLimitRule(limit=3, window_seconds=30),
+    "dailysettings": RateLimitRule(limit=5, window_seconds=60),
+    "timezone": RateLimitRule(limit=3, window_seconds=30),
+    "admin_settings": RateLimitRule(limit=10, window_seconds=60),
+    "superadmin": RateLimitRule(limit=3, window_seconds=10),
+    "reload_cache": RateLimitRule(limit=1, window_seconds=60),
+}
+
+CALLBACK_RULES: dict[str, RateLimitRule] = {
+    "random_ayah": RateLimitRule(limit=5, window_seconds=15),
+    "next_ayah": RateLimitRule(limit=5, window_seconds=15),
+    "random_page": RateLimitRule(limit=3, window_seconds=30),
+    "next_page": RateLimitRule(limit=3, window_seconds=30),
+    "page_translation": RateLimitRule(limit=5, window_seconds=15),
+    "page_no_translation": RateLimitRule(limit=5, window_seconds=15),
+    "open_dailysettings": RateLimitRule(limit=5, window_seconds=60),
+    "daily_settings": RateLimitRule(limit=20, window_seconds=60),
+    "admin_settings": RateLimitRule(limit=20, window_seconds=60),
+}
+
+DEFAULT_RULE = RateLimitRule(limit=20, window_seconds=60)
+
+
+def _command_name(update: Update) -> str | None:
+    message = update.effective_message
+    text = (message.text or "").strip() if message else ""
+
+    if not text.startswith("/"):
+        return None
+
+    command = text.split(maxsplit=1)[0][1:]
+    return command.split("@", 1)[0].lower() or None
+
+
+def _callback_scope(data: str | None) -> str | None:
+    if not data:
+        return None
+
+    # The daily-settings and admin wizards use many dynamic callback names.
+    # Treat each wizard as one logical action so the whole flow is limited
+    # consistently instead of only the "root" buttons.
+    if data.startswith("daily_"):
+        return "daily_settings"
+    if data.startswith("aset_"):
+        return "admin_settings"
+
+    return data.split(":", 1)[0]
+
+
+def resolve_rate_limit_action(update: Update) -> str:
+    if update.callback_query is not None:
+        scope = _callback_scope(update.callback_query.data)
+        return f"callback:{scope}" if scope else "callback:unknown"
+
+    command = _command_name(update)
+    if command:
+        return f"command:{command}"
+
+    return "message"
+
+
+def resolve_rate_limit_rule(action: str) -> RateLimitRule:
+    kind, _, name = action.partition(":")
+
+    if kind == "command":
+        return COMMAND_RULES.get(name, DEFAULT_RULE)
+
+    if kind == "callback":
+        return CALLBACK_RULES.get(name, DEFAULT_RULE)
+
+    return DEFAULT_RULE
+
+
 def _resolve_actor_key(update: Update) -> str | None:
+    user = update.effective_user
     chat = update.effective_chat
 
-    if chat and chat.id is not None:
+    if user is not None and user.id is not None:
+        if chat is not None and chat.id is not None:
+            return f"user:{user.id}:chat:{chat.id}"
+        return f"user:{user.id}"
+
+    if chat is not None and chat.id is not None:
         return f"chat:{chat.id}"
 
     return None
+
+
+def _is_rate_limitable(update: Update) -> bool:
+    # Membership updates and other service updates do not represent a user
+    # action and must never be dropped by the limiter.
+    return update.callback_query is not None or update.effective_message is not None
 
 
 async def _reply_rate_limited(
@@ -172,70 +267,46 @@ async def is_rate_limited_allowed(
     )
 
 
-def rate_limit(rule: RateLimitRule):
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args: object, **kwargs: object) -> object | None:
-            update = kwargs.get("update")
-            context = kwargs.get("context")
+async def enforce_rate_limit(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """
+    Global rate-limit guard.
 
-            if update is None and args:
-                candidate_update = args[0]
-                if isinstance(candidate_update, Update):
-                    update = candidate_update
+    Registered in an earlier handler group, this runs before every command,
+    menu button and inline callback. When the limit is exceeded it answers the
+    callback (or replies to the message) and raises ``ApplicationHandlerStop``
+    so the actual handler never runs. Keeping the guard global is what makes
+    the rate limit cover the whole bot rather than a hand-picked subset of
+    handlers.
+    """
+    if not _is_rate_limitable(update):
+        return
 
-            if context is None and len(args) > 1:
-                candidate_context = args[1]
-                if hasattr(candidate_context, "bot"):
-                    context = candidate_context
+    actor_key = _resolve_actor_key(update)
+    if actor_key is None:
+        return
 
-            if not isinstance(update, Update) or context is None:
-                result = func(*args, **kwargs)
-                if isawaitable(result):
-                    return await result
-                return result
+    action = resolve_rate_limit_action(update)
+    rule = resolve_rate_limit_rule(action)
 
-            typed_update: Update = update
-            typed_context = context
+    allowed = await is_rate_limited_allowed(
+        f"rate_limit:{action}:{actor_key}",
+        limit=rule.limit,
+        window_seconds=rule.window_seconds,
+    )
 
-            actor_key = _resolve_actor_key(typed_update)
+    if allowed:
+        return
 
-            if actor_key is None:
-                result = func(*args, **kwargs)
-                if isawaitable(result):
-                    return await result
-                return result
+    language = detect_language(
+        update.effective_user.language_code if update.effective_user else None
+    )
+    message = rule.message or get_message("rate_limited", language)
+    await _reply_rate_limited(update, context, message)
+    raise ApplicationHandlerStop
 
-            allowed = await is_rate_limited_allowed(
-                f"rate_limit:{func.__module__}.{func.__name__}:{actor_key}",
-                limit=rule.limit,
-                window_seconds=rule.window_seconds,
-            )
 
-            if not allowed:
-                language = detect_language(
-                    typed_update.effective_user.language_code
-                    if typed_update.effective_user
-                    else None
-                )
-
-                message = rule.message or get_message(
-                    "rate_limited",
-                    language,
-                )
-
-                await _reply_rate_limited(
-                    typed_update,
-                    typed_context,
-                    message,
-                )
-                return None
-
-            result = func(*args, **kwargs)
-            if isawaitable(result):
-                return await result
-            return result
-
-        return wrapper
-
-    return decorator
+def get_rate_limit_handler() -> TypeHandler:
+    return TypeHandler(Update, enforce_rate_limit)

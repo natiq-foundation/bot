@@ -38,6 +38,29 @@ class SentHistoryRepository:
             await session.refresh(history)
             return history
 
+    async def get_last_sent_ayah_uuid(
+        self,
+        *,
+        chat_uuid: uuid.UUID,
+        reading_mode: str = "ayah",
+    ) -> uuid.UUID | None:
+        """Return the ayah UUID of the most recent send for a chat/mode."""
+        from app.database.models.sent_history import ReadingMode, SentHistory
+
+        mode = ReadingMode(reading_mode)
+        stmt = (
+            select(SentHistory.ayah_uuid)
+            .where(
+                SentHistory.chat_uuid == chat_uuid,
+                SentHistory.type == mode,
+            )
+            .order_by(SentHistory.created_at.desc())
+            .limit(1)
+        )
+
+        async with self._database.session() as session:
+            return await session.scalar(stmt)
+
     async def get_total_sent_counts(self) -> dict[str, int]:
         from app.database.models.sent_history import ReadingMode, SentHistory
 

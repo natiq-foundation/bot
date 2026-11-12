@@ -7,11 +7,15 @@ from zoneinfo import ZoneInfo
 
 from telegram.ext import Application, ContextTypes, JobQueue
 
-from app.api.checker import MessengerFeature
-from app.bot.handlers.random import format_ayah
+from app.bot.services.delivery import (
+    DeliveryTarget,
+    deliver_ayah,
+    deliver_page,
+    inline_keyboards_supported,
+)
+from app.bot.services.quran import QuranService
 from app.core.config import resolve_timezone
 from app.i18n import detect_language
-from app.ui.keyboards.random import random_ayah_keyboard, random_page_keyboard
 
 if TYPE_CHECKING:
     from app.database.models.chat import Chat
@@ -59,15 +63,12 @@ async def send_daily_ayah_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     try:
-        from app.core.container import Container
         from app.database.repositories.chat import ChatRepository
-        from app.bot.handlers.random_page import format_page, generate_random_page
 
-        container: Container = context.application.bot_data.get("container")
         chat_repo: ChatRepository = context.application.bot_data.get("user_repository")
 
-        if not container or not chat_repo:
-            logger.warning("Container or chat repository not available")
+        if not chat_repo:
+            logger.warning("Chat repository is not available")
             return
 
         user = await chat_repo.get_by_telegram_id(chat_id)
@@ -95,64 +96,47 @@ async def send_daily_ayah_job(context: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
 
-        log_surah: int = -1
-        log_ayah: int = -1
-
-        # Determine if sending an ayah or a page
-        reply_markup = None
+        service = QuranService.from_application(context.application)
+        language = detect_language(user.language)
+        target = DeliveryTarget.for_chat(
+            context.bot,
+            user.chat_id,
+            language,
+            inline_keyboards=inline_keyboards_supported(context.application),
+        )
 
         if user.daily_type == "page":
-            # Get random page
-            content = await generate_random_page(container)
-            # format_page already appends the bot attribution line
-            message = format_page(content)
-
-            # Attach the same inline keyboard as the random page
-            # (Next Page / Translation toggle).
-            if content and context.application.bot_data["feature_checker"].supports(
-                MessengerFeature.INLINE_KEYBOARD
-            ):
-                language = detect_language(user.language)
-                reply_markup = random_page_keyboard(
-                    content[0].uuid,
-                    language,
-                    False,
-                    include_settings=True,
-                )
+            ayahs = await service.pick_page(
+                delivery_mode=user.delivery_mode,
+                chat_uuid=user.uuid,
+            )
+            await service.record_page(user.chat_id, ayahs)
+            await deliver_page(
+                target,
+                ayahs,
+                show_translation=False,
+                include_settings=True,
+            )
         else:
-            # Get random ayah
-            ayah = await container.provider.random_ayah()
-            log_surah = ayah.surah_number
-            log_ayah = ayah.ayah_number
-            language = detect_language(user.language)
-            # format_ayah already appends the bot attribution line
-            message = format_ayah(ayah)
-
-            # Attach the same inline keyboard as the random ayah
-            # (Next Ayah).
-            if context.application.bot_data["feature_checker"].supports(
-                MessengerFeature.INLINE_KEYBOARD
-            ):
-                reply_markup = random_ayah_keyboard(
-                    ayah.uuid, language, include_settings=True
-                )
-
-        # Send to user
-        await context.bot.send_message(
-            chat_id=user.chat_id,
-            text=message,
-            reply_markup=reply_markup,
-        )
+            ayah = await service.pick_ayah(
+                delivery_mode=user.delivery_mode,
+                chat_uuid=user.uuid,
+            )
+            await service.record_ayah(user.chat_id, ayah)
+            await deliver_ayah(
+                target,
+                ayah,
+                include_settings=True,
+            )
 
         # Mark as sent
         await chat_repo.mark_daily_ayah_sent(user.chat_id)
 
         logger.info(
-            "Sent daily ayah: telegram_id=%s, type=%s, surah=%d, ayah=%d",
-            user.chat_id,
+            "Sent daily %s: telegram_id=%s, delivery_mode=%s",
             user.daily_type,
-            log_surah,
-            log_ayah,
+            user.chat_id,
+            user.delivery_mode,
         )
 
     except Exception as exc:

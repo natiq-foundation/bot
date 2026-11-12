@@ -22,6 +22,7 @@
   "random_page_error": "Failed to fetch the page.",
   "random_page_loading": "Loading Quran cache... please wait.",
   "next_ayah_error": "Failed to fetch the ayah",
+  "admin_only_buttons": "❌ Only group administrators can use these buttons.",
   "help": "📖 *Help - Command List*\n\n👤 *User Commands*\n/start - Initialize the bot and view features\n/random - Get a random Quran ayah\n/randompage - Get a random Quran page\n/dailysettings - Configure daily sending settings, time, timezone, and delivery mode\n/admin_settings - Configure admin and group settings\n\n🔐 *Superadmin Commands*\n/superadmin - Admin dashboard, system stats, server & cache uptime",
   "admin_dashboard": "🛠 *Bot Admin Dashboard*\n\n{stats}\n\n⚙️ *Environment Settings*\n{env_info}\n\n📡 *Bot & API Info*\n{bot_api_info}\n\n📊 *Sent Statistics*\nTotal Ayahs: {total_ayahs}\nTotal Pages: {total_pages}\n\n🤖 *Cache Status*: {quran_cache_ready}\nBot ID: {bot_id}\nAPI Status: {api_status}\n\n🔧 *Admin Commands*\n/reload_cache - Reload the Quran cache",
   "admin_access_denied": "You do not have access to the admin area. You are not in the superadmin list. Please provide your chat_id to the sysadmin of the bot.\n\nYour chat_id: {user_id}",
