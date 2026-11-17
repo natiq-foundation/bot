@@ -6,7 +6,6 @@ from telegram import Update
 from telegram.ext import CommandHandler, ContextTypes
 from zoneinfo import ZoneInfo
 
-from app.bot.guards.rate_limit import RateLimitRule, rate_limit
 from app.core.config import get_settings
 from app.i18n import detect_language, get_message
 from app.ui.keyboards import main_menu_keyboard
@@ -14,12 +13,6 @@ from app.ui.keyboards import main_menu_keyboard
 logger = logging.getLogger(__name__)
 
 
-@rate_limit(
-    RateLimitRule(
-        limit=3,
-        window_seconds=30,
-    )
-)
 async def timezone_settings(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,

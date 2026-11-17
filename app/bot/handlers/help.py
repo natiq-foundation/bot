@@ -3,18 +3,11 @@ from __future__ import annotations
 from telegram import Update
 from telegram.ext import CommandHandler, ContextTypes
 
-from app.bot.guards.rate_limit import RateLimitRule, rate_limit
 from app.core.config import get_settings
 from app.i18n import detect_language, get_message
 from app.ui.keyboards import main_menu_keyboard
 
 
-@rate_limit(
-    RateLimitRule(
-        limit=5,
-        window_seconds=15,
-    )
-)
 async def help_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,

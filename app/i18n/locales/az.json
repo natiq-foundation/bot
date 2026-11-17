@@ -22,6 +22,7 @@
   "random_page_error": "Səhifə alınmadı.",
   "random_page_loading": "Quran keşi yüklənir... gözləyin.",
   "next_ayah_error": "Ayə alınmadı",
+  "admin_only_buttons": "❌ Bu düymələri yalnız qrup administratorları istifadə edə bilər.",
   "help": "📖 *Kömək - Komut Siyahısı*\n\n👤 *İstifadəçi Komutları*\n/start - Botu başlat və başla\n/random - Təsadüfi Quran ayəsi al\n/randompage - Təsadüfi Quran səhifəsi al\n/dailysettings - Gündəlik göndərmə ayarları\n\n🔐 *Superadmin Komutları*\n/superadmin - Admin paneli və sistemi statusu\n\n⚠️ *Qeyd*: Superadmin komutları yalnız icazəli adminlər üçündür.",
   "admin_dashboard": "🛠 *Bot Admin Paneli*\n\n{stats}\n\n⚙️ *Mühit Ayarları*\n{env_info}\n\n📡 *Bot & API Məlumatı*\n{bot_api_info}\n\n📊 *Göndərilmə Statistikası*\nÜmumi Ayələr: {total_ayahs}\nÜmumi Səhifələr: {total_pages}\n\n🤖 *Keş Statusu*: {quran_cache_ready}\nBot ID: {bot_id}\nAPI Status: {api_status}\n\n🔧 *Admin Komutları*\n/reload_cache - Quran keşini yenidən yükləmək",
   "admin_access_denied": "Siz admin bölməsinə giriş səlahiyyətinə malik deyilsiniz. Siz superadmin siyahısında deyilsiniz. Zəhmət olmasa chat_id-nizi botun sistem admininə bildirin.\n\nSizin chat_id: {user_id}",

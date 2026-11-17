@@ -5,9 +5,9 @@ from collections.abc import Awaitable, Callable
 from telegram import Update
 from telegram.ext import ContextTypes, MessageHandler, filters
 
+from app.bot.handlers.ayah import random_ayah
 from app.bot.handlers.daily_settings import daily_settings
-from app.bot.handlers.random import random_ayah
-from app.bot.handlers.random_page import random_page
+from app.bot.handlers.page import random_page
 from app.i18n import detect_language, get_message
 from app.ui.keyboards.main_menu import main_menu_keyboard, quran_menu_keyboard
 

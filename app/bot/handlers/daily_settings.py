@@ -3,95 +3,23 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 from zoneinfo import ZoneInfo
 
-from app.bot.guards.rate_limit import RateLimitRule, rate_limit
+from app.bot.guards.permissions import can_use_buttons
 from app.bot.jobs.daily_ayah import schedule_user_daily_ayah
 from app.core.config import get_settings
+from app.core.constants import TIMEZONE_CONTINENTS
 from app.i18n import detect_language, get_message
+from app.ui.helpers import safe_edit_message_text as _safe_edit_message_text
 from app.ui.keyboards import main_menu_keyboard
 
 if TYPE_CHECKING:
     from app.database.repositories.chat import ChatRepository
 
 logger = logging.getLogger(__name__)
-
-# Timezone data organized by continent
-TIMEZONE_CONTINENTS = {
-    "Africa": [
-        "Africa/Cairo",
-        "Africa/Casablanca",
-        "Africa/Johannesburg",
-        "Africa/Lagos",
-        "Africa/Nairobi",
-    ],
-    "Asia": [
-        "Asia/Dubai",
-        "Asia/Riyadh",
-        "Asia/Tehran",
-        "Asia/Karachi",
-        "Asia/Dhaka",
-        "Asia/Jakarta",
-        "Asia/Kolkata",
-        "Asia/Tokyo",
-        "Asia/Seoul",
-        "Asia/Bangkok",
-        "Asia/Singapore",
-        "Asia/Hong_Kong",
-        "Asia/Shanghai",
-    ],
-    "Europe": [
-        "Europe/London",
-        "Europe/Paris",
-        "Europe/Berlin",
-        "Europe/Rome",
-        "Europe/Madrid",
-        "Europe/Moscow",
-        "Europe/Istanbul",
-        "Europe/Amsterdam",
-        "Europe/Brussels",
-        "Europe/Vienna",
-    ],
-    "America": [
-        "America/New_York",
-        "America/Los_Angeles",
-        "America/Chicago",
-        "America/Mexico_City",
-        "America/Toronto",
-        "America/Bogota",
-        "America/Lima",
-        "America/Santiago",
-        "America/Buenos_Aires",
-        "America/Sao_Paulo",
-    ],
-    "Australia": [
-        "Australia/Sydney",
-        "Australia/Melbourne",
-        "Australia/Brisbane",
-        "Australia/Perth",
-        "Australia/Adelaide",
-    ],
-}
-
-
-# Daily type options
-async def _safe_edit_message_text(
-    query: CallbackQuery,
-    text: str,
-    *,
-    reply_markup: InlineKeyboardMarkup | None = None,
-) -> None:
-    """Edit a callback query's message, ignoring harmless errors."""
-    try:
-        await query.edit_message_text(
-            text,
-            reply_markup=reply_markup,
-        )
-    except BadRequest:
-        pass
 
 
 def _resolve_telegram_id(update: Update) -> int | None:
@@ -241,12 +169,6 @@ async def _render_daily_settings(
         )
 
 
-@rate_limit(
-    RateLimitRule(
-        limit=5,
-        window_seconds=60,
-    )
-)
 async def daily_settings(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -302,6 +224,16 @@ async def daily_settings_callback(
     language = detect_language(
         update.effective_user.language_code if update.effective_user else None
     )
+
+    if not await can_use_buttons(update, context):
+        try:
+            await query.answer(
+                get_message("admin_only_buttons", language),
+                show_alert=True,
+            )
+        except BadRequest:
+            pass
+        return
 
     try:
         chat_repo: ChatRepository = context.application.bot_data.get("user_repository")

@@ -1,4 +1,4 @@
-from app.bot.handlers.random import format_ayah
+from app.bot.views.content import format_ayah
 from app.core.config import get_settings
 from app.schemas.ayah import Ayah
 

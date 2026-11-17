@@ -5,7 +5,6 @@ import logging
 from telegram import Update
 from telegram.ext import CommandHandler, ContextTypes
 
-from app.bot.guards.rate_limit import RateLimitRule, rate_limit
 from app.bot.jobs.daily_ayah import schedule_user_daily_ayah
 from app.core.config import get_settings
 from app.i18n import detect_language, get_message
@@ -14,12 +13,6 @@ from app.ui.keyboards import main_menu_keyboard
 logger = logging.getLogger(__name__)
 
 
-@rate_limit(
-    RateLimitRule(
-        limit=3,
-        window_seconds=10,
-    )
-)
 async def start(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
